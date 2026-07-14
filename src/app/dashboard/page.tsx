@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 
+import DashboardClient from "./dashboard-client";
+
 import { createClient } from "@/lib/supabase/server";
 
 export default async function DashboardPage() {
@@ -7,30 +9,30 @@ export default async function DashboardPage() {
 
     const {
         data: { user },
-        error,
+        error: authError,
     } = await supabase.auth.getUser();
 
-    if (error || !user) {
+    if (authError || !user) {
         redirect("/login");
     }
 
-    const email = user.email ?? "GitHub user";
+    const { data: repos, error: reposError } = await supabase
+        .from("repos")
+        .select(
+            "id, owner, name, full_name, last_synced_sha, created_at"
+        )
+        .order("created_at", {
+            ascending: false,
+        });
+
+    if (reposError) {
+        console.error(
+            "Failed to load repositories:",
+            reposError
+        );
+    }
 
     return (
-        <main className="flex min-h-screen items-center justify-center bg-neutral-950 px-6 text-white">
-            <div className="text-center">
-                <p className="text-sm text-neutral-500">
-                    Signed in as
-                </p>
-
-                <h1 className="mt-2 text-3xl font-semibold">
-                    {email}
-                </h1>
-
-                <p className="mt-4 text-neutral-400">
-                    Your dashboard is protected.
-                </p>
-            </div>
-        </main>
+        <DashboardClient initialRepos={repos ?? []} />
     );
 }
