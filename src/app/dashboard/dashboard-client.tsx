@@ -1,7 +1,16 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
+type Changelog = {
+    id: string;
+    repo_id: string;
+    version_label: string;
+    content_md: string;
+    published: boolean;
+    created_at: string;
+};
 type Repository = {
     id: string;
     owner: string;
@@ -9,12 +18,18 @@ type Repository = {
     full_name: string;
     last_synced_sha: string | null;
     created_at: string;
+    changelogs: Changelog[];
 };
 
 type DashboardClientProps = {
     initialRepos: Repository[];
     githubConnected: boolean;
 };
+
+type ConnectedRepository = Omit<
+    Repository,
+    "changelogs"
+>;
 
 export default function DashboardClient({
     initialRepos,
@@ -25,6 +40,7 @@ export default function DashboardClient({
     const [fullName, setFullName] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [generatingRepoId, setGeneratingRepoId] = useState<string | null>(null);
 
     const handleSubmit = async (
         event: FormEvent<HTMLFormElement>
@@ -53,7 +69,7 @@ export default function DashboardClient({
             });
 
             const data: {
-                repo?: Repository;
+                repo?: ConnectedRepository;
                 error?: string;
             } = await response.json();
 
@@ -62,13 +78,75 @@ export default function DashboardClient({
                 return;
             }
 
-            setRepos((currentRepos) => [data.repo!, ...currentRepos]);
+            const connectedRepo: Repository = {
+                ...data.repo,
+                changelogs: [],
+            };
+
+            setRepos((currentRepos) => [
+                connectedRepo,
+                ...currentRepos,
+            ]);
 
             setFullName("");
         } catch {
             setError("Something went wrong. Please try again.");
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleGenerate = async (repoId: string) => {
+        setError(null);
+        setGeneratingRepoId(repoId);
+
+        try {
+            const response = await fetch(
+                `/api/repos/${repoId}/changelogs/generate`,
+                {
+                    method: "POST",
+                }
+            );
+
+            const data: {
+                changelog?: Changelog;
+                lastSyncedSha?: string;
+                error?: string;
+            } = await response.json();
+
+            if (
+                !response.ok ||
+                !data.changelog ||
+                !data.lastSyncedSha
+            ) {
+                setError(
+                    data.error ?? "Failed to generate changelog"
+                );
+
+                return;
+            }
+
+            const generatedChangelog = data.changelog;
+            const lastSyncedSha = data.lastSyncedSha;
+
+            setRepos((currentRepos) =>
+                currentRepos.map((repo) =>
+                    repo.id === repoId
+                        ? {
+                            ...repo,
+                            last_synced_sha: lastSyncedSha,
+                            changelogs: [
+                                generatedChangelog,
+                                ...repo.changelogs,
+                            ],
+                        }
+                        : repo
+                )
+            );
+        } catch {
+            setError("Something went wrong. Please try again.");
+        } finally {
+            setGeneratingRepoId(null);
         }
     };
 
@@ -196,10 +274,45 @@ export default function DashboardClient({
                                             </p>
                                         </div>
 
-                                        <span className="w-fit rounded-full border border-neutral-700 px-3 py-1 text-xs text-neutral-400">
-                                            Connected
-                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleGenerate(repo.id)}
+                                            disabled={generatingRepoId === repo.id}
+                                            className="w-fit rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {generatingRepoId === repo.id
+                                                ? "Generating..."
+                                                : "Generate changelog"}
+                                        </button>
                                     </div>
+
+                                    {repo.changelogs.length > 0 && (
+                                        <div className="mt-6 rounded-xl border border-neutral-800 bg-neutral-950 p-5">
+                                            <div className="mb-4 flex items-center justify-between">
+                                                <div>
+                                                    <h4 className="text-lg font-semibold">
+                                                        Latest Changelog
+                                                    </h4>
+
+                                                    <p className="text-sm text-neutral-500">
+                                                        Version: {repo.changelogs[0].version_label}
+                                                    </p>
+                                                </div>
+
+                                                {repo.changelogs[0].published && (
+                                                    <span className="rounded-full bg-green-900 px-3 py-1 text-xs text-green-300">
+                                                        Published
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="prose prose-invert max-w-none">
+                                                <ReactMarkdown>
+                                                    {repo.changelogs[0].content_md}
+                                                </ReactMarkdown>
+                                            </div>
+                                        </div>
+                                    )}
                                 </article>
                             ))}
                         </div>

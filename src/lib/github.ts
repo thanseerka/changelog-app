@@ -7,6 +7,43 @@ export type GitHubCommit = {
     committedAt: string | null;
 };
 
+const TRIVIAL_COMMIT_PATTERNS = [
+    /^merge\b/i,
+    /^wip\b/i,
+    /^typo\b/i,
+    /^format(?:ting)?\b/i,
+];
+
+export function getUnsyncedCommits(
+    commits: GitHubCommit[],
+    lastSyncedSha: string | null
+): GitHubCommit[] {
+    let unsyncedCommits = commits;
+
+    if (lastSyncedSha) {
+        const lastSyncedIndex = commits.findIndex(
+            (commit) => commit.sha === lastSyncedSha
+        );
+
+        if (lastSyncedIndex >= 0) {
+            unsyncedCommits = commits.slice(
+                0,
+                lastSyncedIndex
+            );
+        }
+    }
+
+    return unsyncedCommits.filter((commit) => {
+        const firstLine = commit.message
+            .split("\n")[0]
+            .trim();
+
+        return !TRIVIAL_COMMIT_PATTERNS.some((pattern) =>
+            pattern.test(firstLine)
+        );
+    });
+}
+
 type GitHubRepository = {
     owner: string;
     name: string;

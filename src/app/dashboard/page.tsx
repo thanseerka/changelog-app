@@ -18,12 +18,29 @@ export default async function DashboardPage() {
 
     const { data: repos, error: reposError } = await supabase
         .from("repos")
-        .select(
-            "id, owner, name, full_name, last_synced_sha, created_at"
-        )
+        .select(`
+            id,
+            owner,
+            name,
+            full_name,
+            last_synced_sha,
+            created_at,
+            changelogs (
+                id,
+                repo_id,
+                version_label,
+                content_md,
+                published,
+                created_at
+            )
+        `)
         .order("created_at", {
             ascending: false,
-        });
+        })
+        .order("created_at", {
+            referencedTable: "changelogs",
+            ascending: false,
+        });;
 
     if (reposError) {
         console.error(
