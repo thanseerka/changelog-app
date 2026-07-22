@@ -32,7 +32,25 @@ export default async function DashboardPage() {
         );
     }
 
+    // Check whether GitHub account is connected
+    const { data: githubAccount, error: githubError } =
+        await supabase
+            .from("github_accounts")
+            .select("id")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+    if (githubError) {
+        console.error(
+            "Failed to load GitHub account:",
+            githubError
+        );
+    }
+
     return (
-        <DashboardClient initialRepos={repos ?? []} />
+        <DashboardClient
+            initialRepos={repos ?? []}
+            githubConnected={!!githubAccount}
+        />
     );
 }

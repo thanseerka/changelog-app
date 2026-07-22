@@ -13,13 +13,14 @@ type Repository = {
 
 type DashboardClientProps = {
     initialRepos: Repository[];
+    githubConnected: boolean;
 };
 
 export default function DashboardClient({
     initialRepos,
+    githubConnected,
 }: DashboardClientProps) {
-    const [repos, setRepos] =
-        useState<Repository[]>(initialRepos);
+    const [repos, setRepos] = useState<Repository[]>(initialRepos);
 
     const [fullName, setFullName] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -29,6 +30,13 @@ export default function DashboardClient({
         event: FormEvent<HTMLFormElement>
     ) => {
         event.preventDefault();
+
+        if (!githubConnected) {
+            setError(
+                "Please connect your GitHub account before connecting a repository."
+            );
+            return;
+        }
 
         setError(null);
         setIsSubmitting(true);
@@ -50,19 +58,11 @@ export default function DashboardClient({
             } = await response.json();
 
             if (!response.ok || !data.repo) {
-                setError(
-                    data.error ?? "Failed to connect repository"
-                );
-
+                setError(data.error ?? "Failed to connect repository");
                 return;
             }
 
-            const connectedRepo = data.repo;
-
-            setRepos((currentRepos) => [
-                connectedRepo,
-                ...currentRepos,
-            ]);
+            setRepos((currentRepos) => [data.repo!, ...currentRepos]);
 
             setFullName("");
         } catch {
@@ -88,6 +88,21 @@ export default function DashboardClient({
                         Connect a GitHub repository to generate changelogs
                         from its commits.
                     </p>
+
+                    <div className="mt-6">
+                        {githubConnected ? (
+                            <div className="inline-flex items-center rounded-lg border border-green-700 bg-green-900/30 px-4 py-2 text-green-300">
+                                ✅ GitHub Connected
+                            </div>
+                        ) : (
+                            <a
+                                href="/api/github/connect"
+                                className="inline-flex items-center rounded-lg bg-white px-4 py-2 font-medium text-black hover:bg-neutral-200"
+                            >
+                                Connect GitHub
+                            </a>
+                        )}
+                    </div>
                 </header>
 
                 <section className="mt-10 rounded-xl border border-neutral-800 bg-neutral-900 p-6">
@@ -106,13 +121,13 @@ export default function DashboardClient({
                                 setFullName(event.target.value)
                             }
                             placeholder="owner/repository"
-                            disabled={isSubmitting}
+                            disabled={!githubConnected || isSubmitting}
                             className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none placeholder:text-neutral-600 focus:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-60"
                         />
 
                         <button
                             type="submit"
-                            disabled={isSubmitting}
+                            disabled={!githubConnected || isSubmitting}
                             className="rounded-lg bg-white px-5 py-3 font-medium text-black transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {isSubmitting
@@ -120,6 +135,12 @@ export default function DashboardClient({
                                 : "Connect repository"}
                         </button>
                     </form>
+
+                    {!githubConnected && (
+                        <p className="mt-3 text-sm text-yellow-400">
+                            Connect your GitHub account before adding repositories.
+                        </p>
+                    )}
 
                     {error && (
                         <p className="mt-3 text-sm text-red-400">

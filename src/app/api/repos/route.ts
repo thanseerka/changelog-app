@@ -60,15 +60,21 @@ export async function POST(request: Request) {
     }
 
     const {
-        data: { session },
-        error: sessionError,
-    } = await supabase.auth.getSession();
+        data: githubAccount,
+        error: githubError,
+    } = await supabase
+        .from("github_accounts")
+        .select("access_token")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-    if (sessionError || !session?.provider_token) {
+    if (
+        githubError ||
+        !githubAccount?.access_token
+    ) {
         return NextResponse.json(
             {
-                error:
-                    "GitHub access token is unavailable. Please sign in with GitHub again.",
+                error: "GitHub account is not connected.",
             },
             { status: 401 }
         );
@@ -80,7 +86,7 @@ export async function POST(request: Request) {
 
     try {
         githubRepo = await getRepository({
-            accessToken: session.provider_token,
+            accessToken: githubAccount.access_token,
             owner,
             repo: name,
         });
